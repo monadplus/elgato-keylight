@@ -48,6 +48,9 @@ enum Commands {
     },
 }
 
+const INCR_PERCENT: u8 = 10;
+const DECR_PERCENT: u8 = 10;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
@@ -55,21 +58,19 @@ async fn main() -> anyhow::Result<()> {
     let base = reqwest::Url::parse(&format!("http://{}:{}", args.host, args.port))?;
     let url = base.join(KEYLIGHT_API_PATH)?;
 
-    // curl 192.168.0.92:9123/elgato/lights -XPUT -H 'Content-Type: application/json' -d '{"numberOfLights":1,"lights":[{"temperature":344}]}'
-
     match args.command {
         Commands::Toggle => {
-            println!("Keylight toggled");
+            toggle_power(url).await?;
         }
         Commands::Status => {
             let status = get_status(url.clone()).await?;
             println!("{}", serde_json::to_string_pretty(&status)?);
         }
-        Commands::Incr => todo!(),
-        Commands::Decr => todo!(),
+        Commands::Incr => brightness(url, INCR_PERCENT, Delta::Incr).await?,
+        Commands::Decr => brightness(url, DECR_PERCENT, Delta::Decr).await?,
         Commands::Set {
-            brightness,
-            temperature,
+            brightness: _,
+            temperature: _,
         } => todo!(),
     }
 
@@ -84,7 +85,31 @@ async fn toggle_power(url: reqwest::Url) -> anyhow::Result<()> {
     let mut status = get_status(url.clone()).await?;
     status.set(0, |status| {
         status.power.toggle();
-        println!("")
+        println!("Keylight turned {}", status.power)
+    })?;
+    let _ = reqwest::Client::new().put(url).json(&status).send().await?;
+    Ok(())
+}
+
+enum Delta {
+    Incr,
+    Decr,
+}
+
+async fn brightness(url: reqwest::Url, percent: u8, delta: Delta) -> anyhow::Result<()> {
+    let mut status = get_status(url.clone()).await?;
+    status.set(0, |status| {
+        let mut current = status.brightness.0 as f64;
+        let mut incr = current * (percent as f64 / 100.0);
+        if let Delta::Decr = delta {
+            incr = -incr;
+        }
+        current += incr;
+        if let Ok(new_value) = u8::try_from(current.to_bits()) {
+            if let Ok(new_brightness) = Brightness::new(new_value) {
+                status.brightness = new_brightness;
+            }
+        }
     })?;
     let _ = reqwest::Client::new().put(url).json(&status).send().await?;
     Ok(())

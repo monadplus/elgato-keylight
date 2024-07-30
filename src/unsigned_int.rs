@@ -8,7 +8,7 @@ pub type Temperature = UnsignedInt<u16, 143, 344>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 #[serde(transparent)]
-pub struct UnsignedInt<I, const S: usize, const E: usize>(I);
+pub struct UnsignedInt<I, const S: usize, const E: usize>(pub I);
 
 impl<const S: usize, const E: usize, I: std::fmt::Debug + Copy + PartialEq + Into<usize>>
     UnsignedInt<I, S, E>

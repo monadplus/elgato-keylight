@@ -11,10 +11,12 @@ pub struct DeviceStatus {
     pub lights: Vec<KeyLightStatus>,
 }
 
-#[derive(Clone, Copy, Serialize_repr, Deserialize_repr, PartialEq, Debug)]
+#[derive(Clone, Copy, Serialize_repr, Deserialize_repr, PartialEq, Debug, strum::Display)]
 #[repr(u8)]
 pub enum PowerStatus {
+    #[strum(serialize = "off")]
     Off = 0,
+    #[strum(serialize = "on")]
     On = 1,
 }
 
