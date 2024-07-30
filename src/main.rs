@@ -48,8 +48,8 @@ enum Commands {
     },
 }
 
-const INCR_PERCENT: u8 = 10;
-const DECR_PERCENT: u8 = 10;
+// 0-100, increments/decrements by 10 units
+const BRIGHTNESS_DELTA_VALUE: u8 = 10;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -66,8 +66,8 @@ async fn main() -> anyhow::Result<()> {
             let status = get_status(url.clone()).await?;
             println!("{}", serde_json::to_string_pretty(&status)?);
         }
-        Commands::Incr => brightness(url, INCR_PERCENT, Delta::Incr).await?,
-        Commands::Decr => brightness(url, DECR_PERCENT, Delta::Decr).await?,
+        Commands::Incr => brightness(url, Delta::Incr).await?,
+        Commands::Decr => brightness(url, Delta::Decr).await?,
         Commands::Set {
             brightness: _,
             temperature: _,
@@ -96,19 +96,15 @@ enum Delta {
     Decr,
 }
 
-async fn brightness(url: reqwest::Url, percent: u8, delta: Delta) -> anyhow::Result<()> {
+async fn brightness(url: reqwest::Url, delta: Delta) -> anyhow::Result<()> {
     let mut status = get_status(url.clone()).await?;
     status.set(0, |status| {
-        let mut current = status.brightness.0 as f64;
-        let mut incr = current * (percent as f64 / 100.0);
-        if let Delta::Decr = delta {
-            incr = -incr;
-        }
-        current += incr;
-        if let Ok(new_value) = u8::try_from(current.to_bits()) {
-            if let Ok(new_brightness) = Brightness::new(new_value) {
-                status.brightness = new_brightness;
-            }
+        let new_raw_value = match delta {
+            Delta::Incr => status.brightness.0.saturating_add(BRIGHTNESS_DELTA_VALUE),
+            Delta::Decr => status.brightness.0.saturating_sub(BRIGHTNESS_DELTA_VALUE),
+        };
+        if let Ok(new_brightness) = Brightness::new(new_raw_value) {
+            status.brightness = new_brightness;
         }
     })?;
     let _ = reqwest::Client::new().put(url).json(&status).send().await?;
