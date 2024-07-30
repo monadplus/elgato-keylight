@@ -1,19 +1,22 @@
+use std::{fs::File, io::Write};
+
 use clap::{Parser, Subcommand};
 
 mod keylight;
 mod unsigned_int;
 
 pub use keylight::{DeviceStatus, KeyLightStatus, PowerStatus};
+use tempfile::tempdir;
+use tokio::process::Command;
 pub use unsigned_int::{Brightness, Temperature};
 
 // TODO:
-// * notify-send
+// * UI with iced
 // * discover lights
 
 const KEYLIGHT_API_PATH: &str = "elgato/lights";
 
-/// Elgato Keylight controller using the http API.
-/// Use `avahi-browse -t _elg._tcp --resolve` to discover the IP of your device.
+/// Elgato Keylight controller
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
 struct Args {
@@ -95,10 +98,12 @@ async fn get_status(url: reqwest::Url) -> anyhow::Result<DeviceStatus> {
 
 async fn toggle_power(url: reqwest::Url) -> anyhow::Result<()> {
     let mut status = get_status(url.clone()).await?;
+    let mut new = PowerStatus::On;
     status.set(0, |status| {
         status.power.toggle();
-        println!("Keylight turned {}", status.power)
+        new = status.power;
     })?;
+    notify(&format!("Turned {}", new)).await?;
     let _ = reqwest::Client::new().put(url).json(&status).send().await?;
     Ok(())
 }
@@ -138,5 +143,22 @@ async fn temperature(url: reqwest::Url, delta: Delta) -> anyhow::Result<()> {
         }
     })?;
     let _ = reqwest::Client::new().put(url).json(&status).send().await?;
+    Ok(())
+}
+
+async fn notify(msg: &str) -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let path = dir.path().join("elgato.png");
+    let mut file = File::create(&path)?;
+    let bytes = include_bytes!("../assets/elgato.png");
+    file.write_all(bytes)?;
+    file.flush()?;
+
+    Command::new("notify-send")
+        .arg(format!("--icon={}", path.display()))
+        .arg("Key Light Controller")
+        .arg(msg)
+        .output()
+        .await?;
     Ok(())
 }

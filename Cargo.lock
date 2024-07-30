@@ -234,6 +234,7 @@ dependencies = [
  "serde_json",
  "serde_repr",
  "strum",
+ "tempfile",
  "thiserror",
  "tokio",
 ]
