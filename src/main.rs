@@ -1,7 +1,15 @@
+use std::{num::ParseIntError, str::FromStr};
+
 use anyhow::bail;
 use clap::{Parser, Subcommand};
-use serde::{Deserialize, Serialize};
+use serde::{de::Error, Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
+
+// TODO:
+// * incr/decr
+// * set
+// * notify-send
+// * discover lights
 
 const KEYLIGHT_API_PATH: &str = "elgato/lights";
 
@@ -37,9 +45,9 @@ enum Commands {
     /// Set value
     Set {
         #[arg(short, long)]
-        brightness: Option<u8>,
+        brightness: Option<Brightness>,
         #[arg(short, long)]
-        temperature: Option<u16>,
+        temperature: Option<Temperature>,
     },
 }
 
@@ -64,11 +72,7 @@ async fn main() -> anyhow::Result<()> {
         Commands::Toggle => {
             let mut status = status(url.clone()).await?;
             status.toggle_power(0)?;
-            let _ = reqwest::Client::new()
-                .put(url)
-                .json(&status)
-                .send()
-                .await?;
+            let _ = reqwest::Client::new().put(url).json(&status).send().await?;
             println!("Keylight toggled");
         }
         Commands::Status => {
@@ -93,11 +97,7 @@ async fn status(url: reqwest::Url) -> anyhow::Result<DeviceStatus> {
 async fn power(url: reqwest::Url, power: PowerStatus) -> anyhow::Result<()> {
     let mut status = status(url.clone()).await?;
     status.set_power(0, power)?;
-    let _ = reqwest::Client::new()
-        .put(url)
-        .json(&status)
-        .send()
-        .await?;
+    let _ = reqwest::Client::new().put(url).json(&status).send().await?;
     Ok(())
 }
 
@@ -130,10 +130,8 @@ impl PowerStatus {
 struct KeyLightStatus {
     #[serde(rename = "on")]
     power: PowerStatus,
-    // TODO: range 0-100
-    brightness: u8,
-    // TODO: range 143-344
-    temperature: u16,
+    brightness: Brightness,
+    temperature: Temperature,
 }
 
 impl DeviceStatus {
@@ -159,14 +157,73 @@ impl DeviceStatus {
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn set_power_all(&mut self, status: PowerStatus) {
         (0..self.number_of_lights).for_each(|index| self.set_power(index, status).unwrap())
     }
 }
 
+type Brightness = UnsignedInt<u8, 0, 100>;
+type Temperature = UnsignedInt<u16, 143, 344>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[serde(transparent)]
+struct UnsignedInt<I, const S: usize, const E: usize>(I);
+
+impl<const S: usize, const E: usize, I: std::fmt::Debug + Copy + PartialEq + Into<usize>>
+    UnsignedInt<I, S, E>
+{
+    pub fn new(i: I) -> Result<Self, String> {
+        let n: usize = i.into();
+        if n < S || n > E {
+            return Err(format!("Outside range [{}, {}]", S, E));
+        }
+        Ok(UnsignedInt(i))
+    }
+}
+
+impl<
+        const S: usize,
+        const E: usize,
+        I: std::fmt::Debug + Copy + PartialEq + FromStr<Err = ParseIntError> + Into<usize>,
+    > FromStr for UnsignedInt<I, S, E>
+{
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        UnsignedInt::new(I::from_str(s).map_err(|e| format!("{e}"))?)
+    }
+}
+
+impl<
+        'de,
+        const S: usize,
+        const E: usize,
+        I: std::fmt::Debug + Copy + PartialEq + Deserialize<'de> + Into<usize>,
+    > Deserialize<'de> for UnsignedInt<I, S, E>
+{
+    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let inner = I::deserialize(d)?;
+        UnsignedInt::new(inner).map_err(D::Error::custom)
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unsigned_int() {
+        let x: Result<UnsignedInt<u8, 5, 10>, _> = UnsignedInt::new(6);
+        assert!(x.is_ok());
+
+        let x: Result<UnsignedInt<u8, 5, 10>, _> = UnsignedInt::new(3);
+        assert!(x.is_err());
+    }
 
     #[test]
     fn deser() {
@@ -181,10 +238,16 @@ mod tests {
                 number_of_lights: 1,
                 lights: vec!(KeyLightStatus {
                     power: PowerStatus::On,
-                    brightness: 3,
-                    temperature: 191,
+                    brightness: UnsignedInt::new(3).unwrap(),
+                    temperature: UnsignedInt::new(191).unwrap(),
                 }),
             }
-        )
+        );
+
+        let obj = serde_json::json!({
+            "numberOfLights":1,
+            "lights":[{"on":1,"brightness":-1,"temperature":360}]
+        });
+        assert!(serde_json::from_value::<DeviceStatus>(obj).is_err());
     }
 }
