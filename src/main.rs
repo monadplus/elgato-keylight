@@ -7,8 +7,6 @@ pub use keylight::{DeviceStatus, KeyLightStatus, PowerStatus};
 pub use unsigned_int::{Brightness, Temperature};
 
 // TODO:
-// * incr/decr
-// * set
 // * notify-send
 // * discover lights
 
@@ -36,20 +34,25 @@ enum Commands {
     /// Toggle (on/off)
     Toggle,
     /// Increase brightness by 10%
-    Incr,
+    IncrBrightness,
     /// Decrease brightness by 10%
-    Decr,
-    /// Set value
-    Set {
-        #[arg(short, long)]
-        brightness: Option<Brightness>,
-        #[arg(short, long)]
-        temperature: Option<Temperature>,
-    },
+    DecrBrightness,
+    /// Increase temperature by 10%
+    IncrTemperature,
+    /// Decrease temperature by 10%
+    DecrTemperature,
+    /// Set values for brightness and temperature
+    Set(SetArgs),
 }
 
-// 0-100, increments/decrements by 10 units
-const BRIGHTNESS_DELTA_VALUE: u8 = 10;
+#[derive(Debug, clap::Args)]
+#[group(required = true, multiple = true)]
+pub struct SetArgs {
+    #[arg(short, long)]
+    brightness: Option<Brightness>,
+    #[arg(short, long)]
+    temperature: Option<Temperature>,
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -66,12 +69,21 @@ async fn main() -> anyhow::Result<()> {
             let status = get_status(url.clone()).await?;
             println!("{}", serde_json::to_string_pretty(&status)?);
         }
-        Commands::Incr => brightness(url, Delta::Incr).await?,
-        Commands::Decr => brightness(url, Delta::Decr).await?,
-        Commands::Set {
-            brightness: _,
-            temperature: _,
-        } => todo!(),
+        Commands::IncrBrightness => brightness(url, Delta::Incr).await?,
+        Commands::DecrBrightness => brightness(url, Delta::Decr).await?,
+        Commands::IncrTemperature => temperature(url, Delta::Incr).await?,
+        Commands::DecrTemperature => temperature(url, Delta::Incr).await?,
+        Commands::Set(SetArgs {
+            brightness,
+            temperature,
+        }) => {
+            let mut status = get_status(url.clone()).await?;
+            status.set(0, move |status| {
+                status.brightness = brightness.unwrap_or(status.brightness);
+                status.temperature = temperature.unwrap_or(status.temperature);
+            })?;
+            let _ = reqwest::Client::new().put(url).json(&status).send().await?;
+        }
     }
 
     Ok(())
@@ -96,6 +108,9 @@ enum Delta {
     Decr,
 }
 
+const BRIGHTNESS_DELTA_VALUE: u8 = 10;
+const TEMPERATURE_DELTA_VALUE: u16 = 20;
+
 async fn brightness(url: reqwest::Url, delta: Delta) -> anyhow::Result<()> {
     let mut status = get_status(url.clone()).await?;
     status.set(0, |status| {
@@ -105,6 +120,21 @@ async fn brightness(url: reqwest::Url, delta: Delta) -> anyhow::Result<()> {
         };
         if let Ok(new_brightness) = Brightness::new(new_raw_value) {
             status.brightness = new_brightness;
+        }
+    })?;
+    let _ = reqwest::Client::new().put(url).json(&status).send().await?;
+    Ok(())
+}
+
+async fn temperature(url: reqwest::Url, delta: Delta) -> anyhow::Result<()> {
+    let mut status = get_status(url.clone()).await?;
+    status.set(0, |status| {
+        let new_raw_value = match delta {
+            Delta::Incr => status.temperature.0.saturating_add(TEMPERATURE_DELTA_VALUE),
+            Delta::Decr => status.temperature.0.saturating_sub(TEMPERATURE_DELTA_VALUE),
+        };
+        if let Ok(new_temperature) = Temperature::new(new_raw_value) {
+            status.temperature = new_temperature;
         }
     })?;
     let _ = reqwest::Client::new().put(url).json(&status).send().await?;
