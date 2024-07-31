@@ -1,12 +1,26 @@
 [package]
 name = "elgato-keylight"
+description = "Elgato Key Light controller for Linux"
 version = "0.1.0"
+authors = ["Arnau Abella Gassol <arnau.abella@monadplus.pro>"]
 edition = "2021"
+license = "MIT"
+repository = "https://github.com/monadplus/elgato-keylight"
+homepage = "https://github.com/monadplus/elgato-keylight"
+readme = "README.md"
+categories = ["cli"]
+keywords = ["elgato"]
+default-run = "elgato-keylight"
+
+[[bin]]
+name = "elgato-keylight-discover"
+path = "src/bin/discover.rs"
 
 [dependencies]
 anyhow = "1.0.86"
 clap = { version = "4.5.11", features = ["derive"] }
 derive_more = "0.99.18"
+regex = "1.10.5"
 reqwest = { version = "0.12", features = ["json"] }
 serde = { version = "1.0.204", features = ["derive"] }
 serde_json = "1.0.121"

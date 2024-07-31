@@ -3,17 +3,12 @@ use std::{fs::File, io::Write};
 use anyhow::bail;
 use clap::{Parser, Subcommand};
 
-mod keylight;
-mod unsigned_int;
-
-pub use keylight::{DeviceStatus, KeyLightStatus, PowerStatus};
+use elgato_keylight::*;
 use tempfile::tempdir;
 use tokio::process::Command;
-pub use unsigned_int::{Brightness, Temperature};
 
 // TODO:
 // * UI with iced
-// * discover lights
 
 const KEYLIGHT_API_PATH: &str = "elgato/lights";
 
