@@ -10,7 +10,11 @@ homepage = "https://github.com/monadplus/elgato-keylight"
 readme = "README.md"
 categories = ["cli"]
 keywords = ["elgato"]
-default-run = "elgato-keylight"
+default-run = "elgato-keylight-cli"
+
+[[bin]]
+name = "elgato-keylight-cli"
+path = "src/bin/cli.rs"
 
 [[bin]]
 name = "elgato-keylight-discover"

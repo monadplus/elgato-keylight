@@ -5,6 +5,8 @@ use anyhow::bail;
 use regex::{Captures, Regex};
 use tokio::process::Command;
 
+use crate::find_executable;
+
 const ELGATO_SERVICE_ID: &str = "_elg._tcp";
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
@@ -22,12 +24,8 @@ pub enum PacketParseError {
 }
 
 pub async fn discover_elgato_devices() -> anyhow::Result<Vec<MdnsPacket>> {
-    if let Err(err) = Command::new("avahi-browse").arg("--help").output().await {
-        if err.kind() == std::io::ErrorKind::NotFound {
-            bail!("avahi-browse not installed");
-        } else {
-            bail!(err);
-        }
+    if find_executable("avahi-browse").await?.is_none() {
+        bail!("avahi-browse not installed");
     }
 
     let output = Command::new("avahi-browse")
