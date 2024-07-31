@@ -30,6 +30,25 @@ impl PowerStatus {
     }
 }
 
+impl From<PowerStatus> for bool {
+    fn from(value: PowerStatus) -> Self {
+        match value {
+            PowerStatus::Off => false,
+            PowerStatus::On => true,
+        }
+    }
+}
+
+impl From<bool> for PowerStatus {
+    fn from(b: bool) -> Self {
+        if b {
+            PowerStatus::On
+        } else {
+            PowerStatus::Off
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KeyLightStatus {

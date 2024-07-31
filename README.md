@@ -1,27 +1,42 @@
 # Elgato Key Light Controller
 
-> GUI coming soon..
+Elgato Key Light controller for Linux written in Rust:
+* `elgato-keylight`: GUI
+* `elgato-keylight-cli`: CLI
 
-Elgato Key Light controller for Linux written in Rust
+![Screenshot of the elgato-keylight GUI](./screenshots/elgato-keylight-gui.png)
 
 ## Installation
 
 ```sh
 cargo install --path . --force
+
+# Don't forget to add to folder to your PATH
+$ echo 'PATH="$HOME/.cargo/bin:$PATH"' >> ~/.bashrc
 ```
 
 ### Dependencies
 
-* `avahi-browse`: for device discovery
-* (optional) `notify-send`: for desktop notifications
+* `avahi-browse` (required): for device discovery
+* `notify-send` (optional): for desktop notifications
 
 ## Usage
 
+
+### GUI
+
+```sh
+$ elgato-keylight
+```
+
+### CLI
+
 ```sh
 $ elgato-keylight-cli --help
+
 Elgato Key Light controller for Linux
 
-Usage: elgato-keylight-cli --host <HOST> --port <PORT> <COMMAND>
+Usage: elgato-keylight-cli --ip <IP> --port <PORT> <COMMAND>
 
 Commands:
   status            Status: on/off, brightness, temperature, etc
@@ -34,7 +49,7 @@ Commands:
   help              Print this message or the help of the given subcommand(s)
 
 Options:
-      --host <HOST>  IP address
+      --ip <IP>      IP address
       --port <PORT>  API port
   -h, --help         Print help
   -V, --version      Print version
@@ -65,3 +80,8 @@ $ elgato-keylight-discover
     }
 ]
 ```
+## Contributing
+
+Contributions are welcome! 
+
+Please, if you intend to do a big change, open an issue first.

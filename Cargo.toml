@@ -8,9 +8,13 @@ license = "MIT"
 repository = "https://github.com/monadplus/elgato-keylight"
 homepage = "https://github.com/monadplus/elgato-keylight"
 readme = "README.md"
-categories = ["cli"]
-keywords = ["elgato"]
-default-run = "elgato-keylight-cli"
+categories = ["gui", "cli"]
+keywords = ["elgato", "keylight", "control center"]
+default-run = "elgato-keylight"
+
+[[bin]]
+name = "elgato-keylight"
+path = "src/bin/gui.rs"
 
 [[bin]]
 name = "elgato-keylight-cli"
@@ -24,6 +28,11 @@ path = "src/bin/discover.rs"
 anyhow = "1.0.86"
 clap = { version = "4.5.11", features = ["derive"] }
 derive_more = "0.99.18"
+eframe = "0.28.1"
+egui_extras = { version = "0.28.1", features = ["all_loaders"] }
+env_logger = "0.11.5"
+itertools = "0.13.0"
+log = "0.4.22"
 regex = "1.10.5"
 reqwest = { version = "0.12", features = ["json"] }
 serde = { version = "1.0.204", features = ["derive"] }
@@ -33,3 +42,4 @@ strum = { version = "0.26.3", features = ["derive"] }
 tempfile = "3.10.1"
 thiserror = "1.0.63"
 tokio = { version = "1", features = ["full"] }
+url = "2.5.2"
