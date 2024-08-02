@@ -1,6 +1,6 @@
-use std::{fs::File, io::Write, path::PathBuf};
+use std::{fs::File, io::Write, net::IpAddr, path::PathBuf, string::FromUtf8Error};
 
-use anyhow::bail;
+use reqwest::Url;
 use tokio::process::Command;
 
 mod avahi_browse;
@@ -8,16 +8,31 @@ mod http;
 mod keylight;
 mod unsigned_int;
 
-pub use avahi_browse::discover_elgato_devices;
-pub use http::{get_status, set_status};
-pub use keylight::{DeviceStatus, KeyLightStatus, PowerStatus};
-pub use unsigned_int::{Brightness, Temperature};
+pub use avahi_browse::*;
+pub use http::*;
+pub use keylight::*;
+pub use unsigned_int::*;
 
-pub async fn find_executable(executable: &str) -> anyhow::Result<Option<PathBuf>> {
+const KEYLIGHT_API_PATH: &str = "elgato/lights";
+
+#[derive(Debug, thiserror::Error)]
+pub enum FindExecError {
+    #[error(transparent)]
+    OutputParse(#[from] FromUtf8Error),
+    #[error(transparent)]
+    IO(#[from] std::io::Error),
+}
+
+pub fn get_keylight_url(host: IpAddr, port: u16) -> Result<Url, url::ParseError> {
+    let base = Url::parse(&format!("http://{}:{}", host, port))?;
+    base.join(KEYLIGHT_API_PATH)
+}
+
+pub async fn find_executable(executable: &str) -> Result<Option<PathBuf>, FindExecError> {
     match Command::new("which").arg(executable).output().await {
         Ok(output) => Ok(Some(PathBuf::from(String::from_utf8(output.stdout)?))),
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(err) => bail!(err),
+        Err(err) => Err(FindExecError::IO(err)),
     }
 }
 
@@ -28,9 +43,9 @@ pub async fn notify(msg: &str) -> anyhow::Result<()> {
     }
 
     let dir = tempfile::tempdir()?;
-    let path = dir.path().join("elgato.png");
+    let path = dir.path().join("elgato_logo.png");
     let mut file = File::create(&path)?;
-    let bytes = include_bytes!("../assets/elgato.png");
+    let bytes = include_bytes!("../assets/elgato_logo.png");
     file.write_all(bytes)?;
     file.flush()?;
 
@@ -44,7 +59,7 @@ pub async fn notify(msg: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn toggle_power(url: reqwest::Url) -> anyhow::Result<()> {
+pub async fn toggle_power(url: Url) -> anyhow::Result<PowerStatus> {
     let mut status = get_status(url.clone()).await?;
     let mut new = PowerStatus::On;
     status.set(0, |status| {
@@ -52,8 +67,8 @@ pub async fn toggle_power(url: reqwest::Url) -> anyhow::Result<()> {
         new = status.power;
     })?;
     notify(&format!("Turned {}", new)).await?;
-    let _ = reqwest::Client::new().put(url).json(&status).send().await?;
-    Ok(())
+    set_status(url, status).await?;
+    Ok(new)
 }
 
 pub enum Delta {
@@ -64,7 +79,7 @@ pub enum Delta {
 pub const BRIGHTNESS_DELTA_VALUE: u8 = 10;
 pub const TEMPERATURE_DELTA_VALUE: u16 = 20;
 
-pub async fn brightness(url: reqwest::Url, delta: Delta) -> anyhow::Result<()> {
+pub async fn incr_brightness(url: Url, delta: Delta) -> anyhow::Result<()> {
     let mut status = get_status(url.clone()).await?;
     status.set(0, |status| {
         let new_raw_value = match delta {
@@ -79,7 +94,7 @@ pub async fn brightness(url: reqwest::Url, delta: Delta) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn temperature(url: reqwest::Url, delta: Delta) -> anyhow::Result<()> {
+pub async fn incr_temperature(url: Url, delta: Delta) -> anyhow::Result<()> {
     let mut status = get_status(url.clone()).await?;
     status.set(0, |status| {
         let new_raw_value = match delta {
