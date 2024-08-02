@@ -1,8 +1,8 @@
+use std::net::IpAddr;
+
 use clap::{Parser, Subcommand};
 
 use elgato_keylight::*;
-
-const KEYLIGHT_API_PATH: &str = "elgato/lights";
 
 /// Elgato Keylight controller
 #[derive(Debug, Parser)]
@@ -10,10 +10,10 @@ const KEYLIGHT_API_PATH: &str = "elgato/lights";
 struct Args {
     /// IP address
     #[arg(long)]
-    host: String,
+    ip: IpAddr,
     /// API port
     #[arg(long)]
-    port: String,
+    port: u16,
     #[command(subcommand)]
     command: Commands,
 }
@@ -49,8 +49,7 @@ pub struct SetArgs {
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
-    let base = reqwest::Url::parse(&format!("http://{}:{}", args.host, args.port))?;
-    let url = base.join(KEYLIGHT_API_PATH)?;
+    let url = get_keylight_url(args.ip, args.port)?;
 
     match args.command {
         Commands::Toggle => {
@@ -60,10 +59,10 @@ async fn main() -> anyhow::Result<()> {
             let status = get_status(url.clone()).await?;
             println!("{}", serde_json::to_string_pretty(&status)?);
         }
-        Commands::IncrBrightness => brightness(url, Delta::Incr).await?,
-        Commands::DecrBrightness => brightness(url, Delta::Decr).await?,
-        Commands::IncrTemperature => temperature(url, Delta::Incr).await?,
-        Commands::DecrTemperature => temperature(url, Delta::Incr).await?,
+        Commands::IncrBrightness => incr_brightness(url, Delta::Incr).await?,
+        Commands::DecrBrightness => incr_brightness(url, Delta::Decr).await?,
+        Commands::IncrTemperature => incr_temperature(url, Delta::Incr).await?,
+        Commands::DecrTemperature => incr_temperature(url, Delta::Incr).await?,
         Commands::Set(SetArgs {
             brightness,
             temperature,
