@@ -1,27 +1,8 @@
-use std::panic;
-use std::string::FromUtf8Error;
-use std::{convert::TryFrom, net::IpAddr, str::FromStr};
+use std::{convert::TryFrom, net::IpAddr, panic, str::FromStr};
 
 use regex::{Captures, Regex};
-use tokio::process::Command;
 
-use crate::{find_executable, FindExecError};
-
-const ELGATO_SERVICE_ID: &str = "_elg._tcp";
-
-#[derive(Debug, thiserror::Error)]
-pub enum DiscoverError {
-    #[error(transparent)]
-    FindExec(#[from] FindExecError),
-    #[error("avahi-browse not installed")]
-    AvahiBrowseNotInstalled,
-    #[error("avahi-browse error: {0}")]
-    AvahiBrowseError(std::io::Error),
-    #[error("Output parse error: {0}")]
-    OutputParse(FromUtf8Error),
-    #[error(transparent)]
-    Parse(#[from] PacketParseError),
-}
+pub mod avahi;
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum PacketParseError {
@@ -35,29 +16,6 @@ pub enum PacketParseError {
     AddrParse(#[from] std::net::AddrParseError),
     #[error(transparent)]
     IntParse(#[from] std::num::ParseIntError),
-}
-
-// FIXME: If a cached device is no longer available this take a long time to fail
-pub async fn discover_elgato_devices() -> Result<Vec<MdnsPacket>, DiscoverError> {
-    if find_executable("avahi-browse").await?.is_none() {
-        return Err(DiscoverError::AvahiBrowseNotInstalled);
-    }
-
-    let output = Command::new("avahi-browse")
-        .arg(ELGATO_SERVICE_ID)
-        .arg("--parsable")
-        .arg("--resolve")
-        .arg("--terminate")
-        .output()
-        .await
-        .map_err(DiscoverError::AvahiBrowseError)?;
-
-    let output = String::from_utf8(output.stdout).map_err(DiscoverError::OutputParse)?;
-
-    Ok(output
-        .lines()
-        .map(|line| MdnsPacket::try_from(line.to_string()))
-        .collect::<Result<Vec<_>, _>>()?)
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
