@@ -91,6 +91,13 @@ $ elgato-keylight-discover
 ]
 ```
 
+#### Docker
+
+```sh
+$ docker build --tag=elgato-keylight .
+$ docker run -it elgato-keylight:latest
+```
+
 ## Coming soon
 
 * Asynchronous discovery of devices (no more UI freezes)
