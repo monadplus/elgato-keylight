@@ -1,20 +1,18 @@
-use std::{hash::Hash, sync::Arc};
+use std::sync::{Arc, RwLock};
 
 use eframe::egui::{self, Color32, Id, PopupCloseBehavior, Ui};
 use elgato_keylight::{
-    discover_elgato_devices, get_keylight_url, get_status, set_status, Brightness, DeviceStatus,
-    KeyLightStatus, MdnsPacket, PowerStatus, Temperature,
+    avahi::{find_elgato_devices, spawn_avahi_daemon, AvahiState, Device},
+    get_status, set_status, Brightness, DeviceStatus, KeyLightStatus, PowerStatus, Temperature,
 };
-use itertools::Itertools;
 use log::{error, info};
-use reqwest::Url;
 use tokio::runtime::Runtime;
 
 /// Identifier for the popup error
 const ERROR_POPUP_ID: &str = "error-popup-id";
 
 fn main() -> eframe::Result {
-    // RUST_LOG=debug
+    // RUST_LOG=debug cargo run
     env_logger::init();
 
     let runtime = Arc::new(Runtime::new().expect("Unable to create runtime"));
@@ -23,6 +21,13 @@ fn main() -> eframe::Result {
         error!("Failed to get available devices: {err}");
         vec![]
     });
+    let opt_device = devices.first().cloned();
+
+    let avahi = Arc::new(RwLock::new(AvahiState {
+        devices: devices.clone(),
+    }));
+
+    let _ = spawn_avahi_daemon(Arc::clone(&avahi));
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -32,17 +37,22 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
 
+    let mut app = MyApp {
+        runtime,
+        avahi,
+        devices,
+        error: None,
+        state: AppState::default(),
+    };
+
+    if let Some(device) = opt_device {
+        app.select_device(None, device.clone());
+    }
+
     eframe::run_native(
         "Elgato Key Light Controller",
         options,
-        Box::new(|_cc| {
-            Ok(Box::new(MyApp {
-                runtime,
-                devices,
-                error: None,
-                state: AppState::default(),
-            }))
-        }),
+        Box::new(|_cc| Ok(Box::new(app))),
     )
 }
 
@@ -50,9 +60,11 @@ fn main() -> eframe::Result {
 struct MyApp {
     /// `tokio` runtime to execute asynchronous task
     runtime: Arc<Runtime>,
+    /// Asynchronous avahi state of devices
+    avahi: Arc<RwLock<AvahiState>>,
     /// Current list of available devices
     devices: Vec<Device>,
-    /// Error message
+    /// Error messageCLI & device discover
     error: Option<String>,
     /// Application state
     state: AppState,
@@ -78,7 +90,11 @@ impl eframe::App for MyApp {
         let bulb_icon = egui::Image::new(egui::include_image!("../../assets/bulb_icon.png"))
             .max_width(20.0)
             .rounding(5.0);
-        let refresh_icon = egui::include_image!("../../assets/refresh_icon.png");
+
+        {
+            let rlock = self.avahi.read().expect("read lock");
+            self.devices = rlock.devices.clone();
+        }
 
         egui::CentralPanel::default().show(ctx, |ui| {
             let response = ui.horizontal(|ui| {
@@ -103,91 +119,86 @@ impl eframe::App for MyApp {
             ui.separator();
             ui.add_space(10.0);
 
-            let mut selected = if let AppState::Selected { device, .. } = &self.state {
+            let mut device_selected = if let AppState::Selected { device, .. } = &self.state {
                 device.name.clone()
             } else {
-                "No device selected".to_string()
+                "No device found".to_string()
             };
-            ui.horizontal(|ui| {
-                let response = egui::ComboBox::from_label("")
-                    .selected_text(selected.clone())
-                    .show_ui(ui, |ui| {
-                        self.devices
-                            .iter()
-                            .map(|device| {
-                                ui.selectable_value(
-                                    &mut selected,
-                                    device.name.clone(),
-                                    device.name.clone(),
-                                )
-                            })
-                            .reduce(|acc, e| acc.union(e))
-                    });
-                let response = response.inner.flatten().unwrap_or(response.response);
-                if response.changed() {
-                    if let Some(device) = self.devices.iter().find(|d| d.name == selected) {
-                        info!("Device `{}` selected", device.name);
-                        self.select_device(ui, device.clone());
-                    }
+            let response = egui::ComboBox::from_label("")
+                .selected_text(device_selected.clone())
+                .show_ui(ui, |ui| {
+                    self.devices
+                        .iter()
+                        .map(|device| {
+                            ui.selectable_value(
+                                &mut device_selected,
+                                device.name.clone(),
+                                device.name.clone(),
+                            )
+                        })
+                        .reduce(|acc, e| acc.union(e))
+                });
+            let response = response.inner.flatten().unwrap_or(response.response);
+            if response.changed() {
+                if let Some(device) = self.devices.iter().find(|d| d.name == device_selected) {
+                    info!("Device `{}` selected", device.name);
+                    self.select_device(Some(ui), device.clone());
                 }
-
-                let response = ui.add(egui::Button::image(refresh_icon));
-                if response.clicked() {
-                    self.refresh_devices(ui)
-                }
-            });
+            }
 
             ui.add_space(20.0);
 
-            if let AppState::Selected {
-                power_status,
-                brightness,
-                temperature,
-                ..
-            } = &self.state
-            {
-                let power_status = (*power_status).into();
-                let mut brightness = brightness.0;
-                let mut temperature = temperature.0;
+            match &self.state {
+                AppState::NotSelected => {}
+                AppState::Selected {
+                    power_status,
+                    brightness,
+                    temperature,
+                    ..
+                } => {
+                    let power_status = (*power_status).into();
+                    let mut brightness = brightness.0;
+                    let mut temperature = temperature.0;
 
-                if power_status {
-                    let r = ui.add(egui::Button::image(bulb_icon).fill(Color32::YELLOW));
-                    if r.clicked() {
-                        self.set_power(ui, PowerStatus::Off)
+                    if power_status {
+                        let r = ui.add(egui::Button::image(bulb_icon).fill(Color32::YELLOW));
+                        if r.clicked() {
+                            self.set_power(ui, PowerStatus::Off)
+                        }
+                    } else {
+                        let r = ui.add(egui::Button::image(bulb_icon).fill(Color32::GRAY));
+                        if r.clicked() {
+                            self.set_power(ui, PowerStatus::On)
+                        }
                     }
-                } else {
-                    let r = ui.add(egui::Button::image(bulb_icon).fill(Color32::GRAY));
-                    if r.clicked() {
-                        self.set_power(ui, PowerStatus::On)
-                    }
+
+                    ui.horizontal(|ui| {
+                        ui.label("Temperature:");
+                        let response = ui.add(
+                            egui::Slider::new(&mut temperature, 143..=344)
+                                .suffix("K")
+                                .clamp_to_range(true)
+                                .trailing_fill(true),
+                        );
+                        if response.drag_stopped() {
+                            self.set_temperature(ui, temperature)
+                        }
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Brightness:");
+                        ui.add_space(15.0);
+                        let response = ui.add(
+                            egui::Slider::new(&mut brightness, 3..=100)
+                                .suffix("%")
+                                .clamp_to_range(true)
+                                .trailing_fill(true),
+                        );
+                        if response.drag_stopped() {
+                            self.set_brightness(ui, brightness)
+                        }
+                    });
                 }
-
-                ui.horizontal(|ui| {
-                    ui.label("Temperature:");
-                    let response = ui.add(
-                        egui::Slider::new(&mut temperature, 143..=344)
-                            .suffix("K")
-                            .clamp_to_range(true)
-                            .trailing_fill(true),
-                    );
-                    if response.drag_stopped() {
-                        self.set_temperature(ui, temperature)
-                    }
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Brightness:");
-                    ui.add_space(15.0);
-                    let response = ui.add(
-                        egui::Slider::new(&mut brightness, 3..=100)
-                            .suffix("%")
-                            .clamp_to_range(true)
-                            .trailing_fill(true),
-                    );
-                    if response.drag_stopped() {
-                        self.set_brightness(ui, brightness)
-                    }
-                });
             }
         });
     }
@@ -199,7 +210,7 @@ impl MyApp {
         ui.memory_mut(|mem| mem.toggle_popup(Id::new(ERROR_POPUP_ID)));
     }
 
-    pub fn select_device(&mut self, ui: &Ui, new_device: Device) {
+    pub fn select_device(&mut self, ui: Option<&Ui>, new_device: Device) {
         if let AppState::Selected { ref device, .. } = self.state {
             if *device == new_device {
                 info!("Same device selected");
@@ -208,7 +219,12 @@ impl MyApp {
         }
 
         match self.runtime.block_on(get_status(new_device.url.clone())) {
-            Err(err) => self.error_popup(ui, err),
+            Err(err) => {
+                error!("Get status failed: {err}");
+                if let Some(ui) = ui {
+                    self.error_popup(ui, err);
+                }
+            }
             Ok(status) => {
                 let Some(light) = status.lights.first() else {
                     error!("No light found");
@@ -221,16 +237,6 @@ impl MyApp {
                     brightness: light.brightness,
                     temperature: light.temperature,
                 };
-            }
-        }
-    }
-
-    pub fn refresh_devices(&mut self, ui: &Ui) {
-        match get_available_devices(&self.runtime) {
-            Err(err) => self.error_popup(ui, err),
-            Ok(new_devices) => {
-                info!("Devices refreshed");
-                self.devices = new_devices;
             }
         }
     }
@@ -317,46 +323,6 @@ impl MyApp {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct Device {
-    name: String,
-    url: Url,
-}
-
-impl PartialEq for Device {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-    }
-}
-
-impl Eq for Device {}
-
-impl Hash for Device {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.name.hash(state)
-    }
-}
-
-pub fn get_available_devices(rt: &Runtime) -> anyhow::Result<Vec<Device>> {
-    Ok(rt
-        .block_on(discover_elgato_devices())?
-        .into_iter()
-        .filter_map(|device| match device {
-            MdnsPacket::New(_) | MdnsPacket::Exited(_) => None,
-            MdnsPacket::Resolved { base, service } => {
-                match get_keylight_url(service.ip, service.port) {
-                    Ok(url) => Some(Device {
-                        name: base.hostname,
-                        url,
-                    }),
-                    Err(err) => {
-                        // Light started returning `fe80::3e6a:9dff:fe21:b16` instead of `192.168.0.92`
-                        error!("Couldn't parse url: {err}");
-                        None
-                    }
-                }
-            }
-        })
-        .unique()
-        .collect::<Vec<Device>>())
+fn get_available_devices(rt: &Runtime) -> anyhow::Result<Vec<Device>> {
+    Ok(rt.block_on(find_elgato_devices())?)
 }

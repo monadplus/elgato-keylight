@@ -100,7 +100,6 @@ $ docker run -it elgato-keylight:latest
 
 ## Coming soon
 
-* Asynchronous discovery of devices (no more UI freezes)
 * Packaging: Pacman, Apt, Nixpkgs..
 * Improve linux support by testing in many distributions
 * Tray icon with <https://github.com/tauri-apps/tray-icon>
