@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [unreleased]
 
+### 📚 Documentation
+
+- Update README screenshot
+
+### ⚙️ Miscellaneous Tasks
+
+- Add script to update CHANGELOG
+
+## [0.3.0] - 2024-08-04
+
 ### 🚀 Features
 
 - Dockerfile
