@@ -6,7 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ### 🚀 Features
 
-- Add Dockerfile
+- Dockerfile
+- Async discovery
+
+### 📚 Documentation
+
+- Add CHANGELOG
 
 ## [0.2.0] - 2024-08-04
 

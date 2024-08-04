@@ -2,7 +2,12 @@ use std::net::IpAddr;
 
 use clap::{Parser, Subcommand};
 
+use reqwest::Url;
+
 use elgato_keylight::*;
+
+pub const BRIGHTNESS_DELTA_VALUE: u8 = 10;
+pub const TEMPERATURE_DELTA_VALUE: u16 = 20;
 
 /// Elgato Keylight controller
 #[derive(Debug, Parser)]
@@ -49,7 +54,7 @@ pub struct SetArgs {
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
-    let url = get_keylight_url(args.ip, args.port)?;
+    let url = Url::parse(&format!("http://{}:{}", args.ip, args.port))?;
 
     match args.command {
         Commands::Toggle => {
@@ -76,5 +81,55 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
+    Ok(())
+}
+
+/// Toggle device power
+pub async fn toggle_power(url: Url) -> anyhow::Result<PowerStatus> {
+    let mut status = get_status(url.clone()).await?;
+    let mut new = PowerStatus::On;
+    status.set(0, |status| {
+        status.power.toggle();
+        new = status.power;
+    })?;
+    notify(&format!("Turned {}", new)).await?;
+    set_status(url, status).await?;
+    Ok(new)
+}
+
+pub enum Delta {
+    Incr,
+    Decr,
+}
+
+/// Increase device brightness by delta
+pub async fn incr_brightness(url: Url, delta: Delta) -> anyhow::Result<()> {
+    let mut status = get_status(url.clone()).await?;
+    status.set(0, |status| {
+        let new_raw_value = match delta {
+            Delta::Incr => status.brightness.0.saturating_add(BRIGHTNESS_DELTA_VALUE),
+            Delta::Decr => status.brightness.0.saturating_sub(BRIGHTNESS_DELTA_VALUE),
+        };
+        if let Ok(new_brightness) = Brightness::new(new_raw_value) {
+            status.brightness = new_brightness;
+        }
+    })?;
+    let _ = reqwest::Client::new().put(url).json(&status).send().await?;
+    Ok(())
+}
+
+/// Increase device temperature by delta
+pub async fn incr_temperature(url: Url, delta: Delta) -> anyhow::Result<()> {
+    let mut status = get_status(url.clone()).await?;
+    status.set(0, |status| {
+        let new_raw_value = match delta {
+            Delta::Incr => status.temperature.0.saturating_add(TEMPERATURE_DELTA_VALUE),
+            Delta::Decr => status.temperature.0.saturating_sub(TEMPERATURE_DELTA_VALUE),
+        };
+        if let Ok(new_temperature) = Temperature::new(new_raw_value) {
+            status.temperature = new_temperature;
+        }
+    })?;
+    let _ = reqwest::Client::new().put(url).json(&status).send().await?;
     Ok(())
 }
