@@ -39,6 +39,12 @@ How to install
 $ elgato-keylight
 ```
 
+![GUI in action](./screenshots/gui-in-action.gif) 
+
+Features: 
+- * Discovers devices on a background thread
+    ![background discovery gif](./screenshots/background-discovery.gif) 
+
 ### CLI
 
 ```sh
