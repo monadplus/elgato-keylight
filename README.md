@@ -21,15 +21,21 @@ Elgato Key Light controller for Linux distributions
 ### Dependencies
 
 Required: 
+* `libc`
 * `openssl`
-* `avahi`
+* `avahi` and `avahi-browse`
 
 Optional:
 * `libnotify` (desktop notifications)
 
 How to install
-* **Apt**: `$ sudo apt-get install -y libssl-dev avahi-daemon libnotify-dev`
+* **Apt**: `$ sudo apt-get install -y build-essential libssl-dev avahi-daemon avahi-utils libnotify-dev`
 * **Pacman**: `$ sudo pacman -S openssl avahi libnotify`
+
+### Tested on
+
+* Arch Linux (stable 6.9.1)
+* Ubuntu 24.04 LTS
 
 ## Usage
 
