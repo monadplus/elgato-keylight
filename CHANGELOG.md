@@ -2,15 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
-## [unreleased]
+## [0.4.0] - 2024-08-12
+
+### 🚀 Features
+
+- Tray icon
+- Conditional compilation
 
 ### 📚 Documentation
 
 - Update README screenshot
+- Add gifs
+- Tested on Ubuntu
+- Update with tray icon
 
 ### ⚙️ Miscellaneous Tasks
 
 - Add script to update CHANGELOG
+- Update CHANGELOG
 
 ## [0.3.0] - 2024-08-04
 
