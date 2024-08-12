@@ -1,7 +1,7 @@
 # Maintainer: Arnau Abella <arnau.abella@monadplus.pro>
 
 pkgname=elgato-keylight
-pkgver=0.3.0
+pkgver=0.4.0
 pkgrel=1
 pkgdesc="An Elgato Key Light Controller GUI"
 arch=('x86_64')
