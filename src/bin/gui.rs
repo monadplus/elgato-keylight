@@ -1,34 +1,45 @@
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc, RwLock,
-};
+use std::sync::{Arc, RwLock};
 
 use eframe::egui::{self, Color32, Id, PopupCloseBehavior, Ui};
 use elgato_keylight::{
     avahi::{find_elgato_devices, spawn_avahi_daemon, AvahiState, Device},
     get_status, set_status, Brightness, DeviceStatus, KeyLightStatus, PowerStatus, Temperature,
 };
-use log::{debug, error, info};
+use log::{error, info};
 use tokio::runtime::Runtime;
-use tray_icon::menu::{MenuEvent, MenuId, MenuItem};
+
+#[cfg(feature = "tray-icon")]
+use {
+    log::debug,
+    std::sync::atomic::{AtomicBool, Ordering},
+    tray_icon::menu::{MenuEvent, MenuId, MenuItem},
+};
 
 /// Identifier for the popup error
 const ERROR_POPUP_ID: &str = "error-popup";
 
+#[cfg(feature = "tray-icon")]
 const OPEN_MENU_ITEM_ID: &str = "open-menu-item";
+
+#[cfg(feature = "tray-icon")]
 const EXIT_MENU_ITEM_ID: &str = "exit-menu-item";
 
 fn main() -> eframe::Result {
+    #[cfg(not(target_os = "linux"))]
+    panic!("Only Linux is supported");
+
     // RUST_LOG=debug cargo run
     env_logger::init();
 
+    #[cfg(feature = "tray-icon")]
     let is_window_opened = Arc::new(AtomicBool::new(true));
+    #[cfg(feature = "tray-icon")]
     let stop_signal = Arc::new(AtomicBool::new(false));
 
     // Since egui uses winit under the hood and doesn't use gtk on Linux, and we need gtk for
     // the tray icon to show up, we need to spawn a thread
     // where we initialize gtk and create the tray_icon
-    #[cfg(target_os = "linux")]
+    #[cfg(feature = "tray-icon")]
     {
         let is_window_opened = Arc::clone(&is_window_opened);
         let stop_signal = Arc::clone(&stop_signal);
@@ -106,6 +117,7 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
 
+    #[cfg(feature = "tray-icon")]
     let mut app = MyApp {
         is_window_open: Arc::clone(&is_window_opened),
         stop_signal: Arc::clone(&stop_signal),
@@ -115,33 +127,58 @@ fn main() -> eframe::Result {
         error: None,
         state: AppState::default(),
     };
+    #[cfg(not(feature = "tray-icon"))]
+    let mut app = MyApp {
+        runtime,
+        avahi,
+        devices,
+        error: None,
+        state: AppState::default(),
+    };
+
     if let Some(device) = opt_device {
         app.select_device(None, device.clone());
     }
 
-    // NOTE: a condvar will not work because you need to
-    // wait after the `run_native`, but you won't be able to set the stop
-    // because you are holding a lock here.
-    while !stop_signal.load(Ordering::Acquire) {
-        if is_window_opened.load(Ordering::Acquire) {
-            let app = app.clone();
-            eframe::run_native(
-                "Elgato Key Light Controller",
-                options.clone(),
-                Box::new(|_cc| Ok(Box::new(app))),
-            )
-            .unwrap()
-        }
-    }
+    #[cfg(feature = "tray-icon")]
+    {
+        while !stop_signal.load(Ordering::Acquire) {
+            std::hint::spin_loop(); // Copium
 
-    Ok(())
+            if is_window_opened.load(Ordering::Acquire) {
+                let app = app.clone();
+                eframe::run_native(
+                    "Elgato Key Light Controller",
+                    options.clone(),
+                    Box::new(|_cc| Ok(Box::new(app))),
+                )
+                .unwrap()
+            }
+            // HACK: avoid 100% CPU
+            //
+            // NOTE: a condvar will not work because you need to
+            // wait after the `run_native`, but you won't be able to
+            // set the stop because you are holding a lock here.
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+
+        Ok(())
+    }
+    #[cfg(not(feature = "tray-icon"))]
+    eframe::run_native(
+        "Elgato Key Light Controller",
+        options.clone(),
+        Box::new(|_cc| Ok(Box::new(app))),
+    )
 }
 
 #[derive(Debug, Clone)]
 struct MyApp {
     /// Is the main window open
+    #[cfg(feature = "tray-icon")]
     is_window_open: Arc<AtomicBool>,
     /// Stop app
+    #[cfg(feature = "tray-icon")]
     stop_signal: Arc<AtomicBool>,
     /// `tokio` runtime to execute asynchronous task
     runtime: Arc<Runtime>,
@@ -170,6 +207,7 @@ enum AppState {
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        #[cfg(feature = "tray-icon")]
         ctx.input(|i| {
             if i.viewport().close_requested() {
                 debug!("Close requested");
@@ -177,6 +215,7 @@ impl eframe::App for MyApp {
             }
         });
 
+        #[cfg(feature = "tray-icon")]
         if let Ok(event) = MenuEvent::receiver().try_recv() {
             debug!("Menu event: {:?}", event);
             if event.id() == EXIT_MENU_ITEM_ID {
@@ -432,6 +471,7 @@ fn get_available_devices(rt: &Runtime) -> anyhow::Result<Vec<Device>> {
     Ok(rt.block_on(find_elgato_devices())?)
 }
 
+#[cfg(feature = "tray-icon")]
 fn load_icon(path: &std::path::Path) -> tray_icon::Icon {
     let (icon_rgba, icon_width, icon_height) = {
         let image = image::open(path)

@@ -16,28 +16,30 @@ default-run = "elgato-keylight"
 [[bin]]
 name = "elgato-keylight"
 path = "src/bin/gui.rs"
+required-features = ["gui"]
 
 [[bin]]
 name = "elgato-keylight-cli"
 path = "src/bin/cli.rs"
+required-features = ["cli"]
 
 [[bin]]
 name = "elgato-keylight-discover"
 path = "src/bin/discover.rs"
+required-features = []
 
 [dependencies]
 anyhow = "1.0.86"
-clap = { version = "4.5.11", features = ["derive"] }
-derive_more = "0.99.18"
-eframe = "0.28.1"
-egui_extras = { version = "0.28.1", features = ["all_loaders"] }
+clap = { version = "4.5.11", features = ["derive"], optional = true }
+eframe = { version = "0.28.1", optional = true }
+egui_extras = { version = "0.28.1", features = ["all_loaders"], optional = true }
 env_logger = "0.11.5"
-gtk = "0.18.1"
-image = "0.25.2"
+gtk = { version = "0.18.1", optional = true }
+image = { version = "0.25.2", optional = true }
 itertools = "0.13.0"
 log = "0.4.22"
 regex = "1.10.5"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json"], optional = true }
 serde = { version = "1.0.204", features = ["derive"] }
 serde_json = "1.0.121"
 serde_repr = "0.1.19"
@@ -45,5 +47,12 @@ strum = { version = "0.26.3", features = ["derive"] }
 tempfile = "3.10.1"
 thiserror = "1.0.63"
 tokio = { version = "1", features = ["full"] }
-tray-icon = "0.14.3"
+tray-icon = { version = "0.14.3", optional = true}
 url = "2.5.2"
+
+[features]
+default = ["gui"]
+network = ["dep:reqwest"]
+cli = ["network", "dep:clap"]
+gui = ["network", "dep:eframe", "dep:egui_extras"]
+tray-icon = ["gui", "dep:gtk", "dep:image", "dep:tray-icon"]
