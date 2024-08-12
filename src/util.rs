@@ -52,7 +52,11 @@ fn inject_icon() -> anyhow::Result<PathBuf> {
     let dir = tempfile::tempdir()?;
     let path = dir.path().join("elgato_logo.png");
     let mut file = File::create(&path)?;
-    let bytes = include_bytes!("../assets/elgato_logo.png");
+
+    let bytes = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/assets/elgato_logo.png"
+    ));
     file.write_all(bytes)?;
     file.flush()?;
     Ok(path)
