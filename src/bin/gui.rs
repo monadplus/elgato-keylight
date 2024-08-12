@@ -1,19 +1,87 @@
-use std::sync::{Arc, RwLock};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, RwLock,
+};
 
 use eframe::egui::{self, Color32, Id, PopupCloseBehavior, Ui};
 use elgato_keylight::{
     avahi::{find_elgato_devices, spawn_avahi_daemon, AvahiState, Device},
     get_status, set_status, Brightness, DeviceStatus, KeyLightStatus, PowerStatus, Temperature,
 };
-use log::{error, info};
+use log::{debug, error, info};
 use tokio::runtime::Runtime;
+use tray_icon::menu::{MenuEvent, MenuId, MenuItem};
 
 /// Identifier for the popup error
-const ERROR_POPUP_ID: &str = "error-popup-id";
+const ERROR_POPUP_ID: &str = "error-popup";
+
+const OPEN_MENU_ITEM_ID: &str = "open-menu-item";
+const EXIT_MENU_ITEM_ID: &str = "exit-menu-item";
 
 fn main() -> eframe::Result {
     // RUST_LOG=debug cargo run
     env_logger::init();
+
+    let is_window_opened = Arc::new(AtomicBool::new(true));
+    let stop_signal = Arc::new(AtomicBool::new(false));
+
+    // Since egui uses winit under the hood and doesn't use gtk on Linux, and we need gtk for
+    // the tray icon to show up, we need to spawn a thread
+    // where we initialize gtk and create the tray_icon
+    #[cfg(target_os = "linux")]
+    {
+        let is_window_opened = Arc::clone(&is_window_opened);
+        let stop_signal = Arc::clone(&stop_signal);
+
+        std::thread::spawn(move || {
+            gtk::init().expect("Couldn't start gtk context");
+
+            let open_menu_item = MenuItem::with_id(
+                OPEN_MENU_ITEM_ID,
+                "open",
+                !is_window_opened.load(Ordering::Relaxed),
+                None,
+            );
+
+            let tray_menu = tray_icon::menu::Menu::with_id_and_items(
+                MenuId::new("main"),
+                &[
+                    &open_menu_item,
+                    &MenuItem::with_id(EXIT_MENU_ITEM_ID, "exit", true, None),
+                ],
+            )
+            .unwrap();
+
+            let tray_icon_icon = load_icon(std::path::Path::new(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/assets/elgato_icon.png"
+            )));
+
+            let _tray_icon = tray_icon::TrayIconBuilder::new()
+                .with_menu(Box::new(tray_menu))
+                .with_icon(tray_icon_icon)
+                .with_tooltip("Elgato Keylight Controller")
+                .with_title("Elgato Keylight Controller")
+                .build()
+                .expect("Couldn't start tray icon");
+
+            while gtk::main_iteration() {
+                let main_window_opened = is_window_opened.load(Ordering::Acquire);
+                open_menu_item.set_enabled(!main_window_opened);
+                if !main_window_opened {
+                    if let Ok(event) = MenuEvent::receiver().try_recv() {
+                        debug!("Menu event: {:?}", event);
+                        if event.id() == OPEN_MENU_ITEM_ID {
+                            is_window_opened.store(true, Ordering::Relaxed);
+                        }
+                        if event.id() == EXIT_MENU_ITEM_ID {
+                            stop_signal.store(true, Ordering::Relaxed);
+                        }
+                    }
+                }
+            }
+        });
+    }
 
     let runtime = Arc::new(Runtime::new().expect("Unable to create runtime"));
 
@@ -34,30 +102,47 @@ fn main() -> eframe::Result {
             .with_inner_size([320.0, 240.0])
             .with_close_button(true)
             .with_resizable(true),
+        run_and_return: true,
         ..Default::default()
     };
 
     let mut app = MyApp {
+        is_window_open: Arc::clone(&is_window_opened),
+        stop_signal: Arc::clone(&stop_signal),
         runtime,
         avahi,
         devices,
         error: None,
         state: AppState::default(),
     };
-
     if let Some(device) = opt_device {
         app.select_device(None, device.clone());
     }
 
-    eframe::run_native(
-        "Elgato Key Light Controller",
-        options,
-        Box::new(|_cc| Ok(Box::new(app))),
-    )
+    // NOTE: a condvar will not work because you need to
+    // wait after the `run_native`, but you won't be able to set the stop
+    // because you are holding a lock here.
+    while !stop_signal.load(Ordering::Acquire) {
+        if is_window_opened.load(Ordering::Acquire) {
+            let app = app.clone();
+            eframe::run_native(
+                "Elgato Key Light Controller",
+                options.clone(),
+                Box::new(|_cc| Ok(Box::new(app))),
+            )
+            .unwrap()
+        }
+    }
+
+    Ok(())
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct MyApp {
+    /// Is the main window open
+    is_window_open: Arc<AtomicBool>,
+    /// Stop app
+    stop_signal: Arc<AtomicBool>,
     /// `tokio` runtime to execute asynchronous task
     runtime: Arc<Runtime>,
     /// Asynchronous avahi state of devices
@@ -70,7 +155,7 @@ struct MyApp {
     state: AppState,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 enum AppState {
     #[default]
     NotSelected,
@@ -85,14 +170,34 @@ enum AppState {
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui_extras::install_image_loaders(ctx);
-        let elgato_icon = egui::include_image!("../../assets/elgato_logo.png");
-        let bulb_icon = egui::Image::new(egui::include_image!("../../assets/bulb_icon.png"))
-            .max_width(20.0)
-            .rounding(5.0);
+        ctx.input(|i| {
+            if i.viewport().close_requested() {
+                debug!("Close requested");
+                self.is_window_open.store(false, Ordering::Release);
+            }
+        });
 
-        {
-            let rlock = self.avahi.read().expect("read lock");
+        if let Ok(event) = MenuEvent::receiver().try_recv() {
+            debug!("Menu event: {:?}", event);
+            if event.id() == EXIT_MENU_ITEM_ID {
+                self.stop_signal.store(true, Ordering::Release);
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
+        }
+
+        egui_extras::install_image_loaders(ctx);
+        let elgato_icon = egui::include_image!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/assets/elgato_logo.png"
+        ));
+        let bulb_icon = egui::Image::new(egui::include_image!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/assets/bulb_icon.png"
+        )))
+        .max_width(20.0)
+        .rounding(5.0);
+
+        if let Ok(rlock) = self.avahi.try_read() {
             self.devices = rlock.devices.clone();
         }
 
@@ -325,4 +430,16 @@ impl MyApp {
 
 fn get_available_devices(rt: &Runtime) -> anyhow::Result<Vec<Device>> {
     Ok(rt.block_on(find_elgato_devices())?)
+}
+
+fn load_icon(path: &std::path::Path) -> tray_icon::Icon {
+    let (icon_rgba, icon_width, icon_height) = {
+        let image = image::open(path)
+            .expect("Failed to open icon path")
+            .into_rgba8();
+        let (width, height) = image.dimensions();
+        let rgba = image.into_raw();
+        (rgba, width, height)
+    };
+    tray_icon::Icon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to open icon")
 }
