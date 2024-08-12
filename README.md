@@ -11,8 +11,12 @@ Elgato Key Light controller for Linux distributions
 1. Install Rust <https://www.rust-lang.org/tools/install>
 2. Compile and install executables
    ```sh
-   cargo install --path . --force
+   cargo install --git=https://github.com/monadplus/elgato-keylight --force
    ```
+   - To enable tray icon support:
+       ```sh
+       cargo install --git=https://github.com/monadplus/elgato-keylight --bin=elgato-keylight --features=tray-icon --force
+       ```
 3. Don't forget to add to folder to your PATH
    ```sh
    $ echo 'PATH="$HOME/.cargo/bin:$PATH"' >> ~/.bashrc
@@ -26,11 +30,12 @@ Required:
 * `avahi` and `avahi-browse`
 
 Optional:
-* `libnotify` (desktop notifications)
+* Desktop notifications: `libnotify`
+* Tray icon: `gtk3`, `xdotool`, and `libappindicator`
 
 How to install
-* **Apt**: `$ sudo apt-get install -y build-essential libssl-dev avahi-daemon avahi-utils libnotify-dev`
-* **Pacman**: `$ sudo pacman -S openssl avahi libnotify`
+* **Apt**: `$ sudo apt-get install -y build-essential libssl-dev avahi-daemon avahi-utils libnotify-dev libgtk-3-dev libxdo-dev libappindicator3-dev`
+* **Pacman**: `$ sudo pacman -S openssl avahi libnotify gtk3 xdotool libappindicator-gtk3`
 
 ### Tested on
 
@@ -105,6 +110,8 @@ $ elgato-keylight-discover
 
 #### Docker
 
+> Not working <https://github.com/monadplus/elgato-keylight/issues/4>
+
 ```sh
 $ docker build --tag=elgato-keylight .
 $ docker run -it elgato-keylight:latest
@@ -113,8 +120,6 @@ $ docker run -it elgato-keylight:latest
 ## Coming soon
 
 * Packaging: Pacman, Apt, Nixpkgs..
-* Improve linux support by testing in many distributions
-* Tray icon with <https://github.com/tauri-apps/tray-icon>
 
 ## Contributing
 
