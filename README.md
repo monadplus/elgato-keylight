@@ -8,6 +8,30 @@ Elgato Key Light controller for Linux distributions
 
 ## Installation
 
+## From the AUR
+
+```sh
+aura|paru|yay -S elgato-keylight
+```
+
+or
+
+```sh
+git clone https://github.com/monadplus/elgato-keylight-aur
+cd elgato-keylight-aur
+makepkg -si
+```
+
+## Nix
+
+Coming soon..
+
+## Apt
+
+Coming soon..
+
+## Building from Source
+
 1. Install Rust <https://www.rust-lang.org/tools/install>
 2. Compile and install executables
    ```sh
@@ -116,10 +140,6 @@ $ elgato-keylight-discover
 $ docker build --tag=elgato-keylight .
 $ docker run -it elgato-keylight:latest
 ```
-
-## Coming soon
-
-* Packaging: Pacman, Apt, Nixpkgs..
 
 ## Contributing
 
