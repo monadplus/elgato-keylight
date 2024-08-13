@@ -63,10 +63,7 @@ fn main() -> eframe::Result {
             )
             .unwrap();
 
-            let tray_icon_icon = load_icon(std::path::Path::new(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/assets/elgato_icon.png"
-            )));
+            let tray_icon_icon = load_icon();
 
             let _tray_icon = tray_icon::TrayIconBuilder::new()
                 .with_menu(Box::new(tray_menu))
@@ -472,14 +469,28 @@ fn get_available_devices(rt: &Runtime) -> anyhow::Result<Vec<Device>> {
 }
 
 #[cfg(feature = "tray-icon")]
-fn load_icon(path: &std::path::Path) -> tray_icon::Icon {
+fn load_icon() -> tray_icon::Icon {
+    use std::io::Cursor;
+
+    use image::{ImageFormat, ImageReader};
+    use tray_icon::Icon;
+
     let (icon_rgba, icon_width, icon_height) = {
-        let image = image::open(path)
-            .expect("Failed to open icon path")
+        let reader = ImageReader::with_format(
+            Cursor::new(include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/assets/elgato_icon.png"
+            ))),
+            ImageFormat::Png,
+        );
+        let image = reader
+            .decode()
+            .expect("decode tray icon failed")
             .into_rgba8();
         let (width, height) = image.dimensions();
         let rgba = image.into_raw();
         (rgba, width, height)
     };
-    tray_icon::Icon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to open icon")
+
+    Icon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to open icon")
 }

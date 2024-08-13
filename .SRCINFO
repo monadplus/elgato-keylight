@@ -1,6 +1,6 @@
 pkgbase = elgato-keylight
 	pkgdesc = An Elgato Key Light Controller GUI
-	pkgver = 0.4.0
+	pkgver = 0.5.0
 	pkgrel = 1
 	url = https://github.com/monadplus/elgato-keylight
 	arch = x86_64
@@ -17,7 +17,7 @@ pkgbase = elgato-keylight
 	depends = gdk-pixbuf2
 	depends = xdotool
 	depends = libappindicator-gtk3
-	source = elgato-keylight-0.4.0.tar.gz::https://github.com/monadplus/elgato-keylight/archive/0.4.0.tar.gz
+	source = elgato-keylight-0.5.0.tar.gz::https://github.com/monadplus/elgato-keylight/archive/0.5.0.tar.gz
 	sha512sums = b821f2e1b1436cc7de6124d5a8408ad94c880a9c36fe04461f8ab31126578979cb8cdfd3124326be136686b041863cde16ce2683f6d88af7961a376b2349a400
 
 pkgname = elgato-keylight

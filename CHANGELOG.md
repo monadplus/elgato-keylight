@@ -2,24 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - 2024-08-13
+
+### 🚀 Features
+
+- Conditional compilation
+- PKGBUILD
+
+### 🐛 Bug Fixes
+
+- Tray-icon static data
+
+### 📚 Documentation
+
+- Update with tray icon
+
+### ⚙️ Miscellaneous Tasks
+
+- Reduce transitive dependencies
+
 ## [0.4.0] - 2024-08-12
 
 ### 🚀 Features
 
 - Tray icon
-- Conditional compilation
 
 ### 📚 Documentation
 
 - Update README screenshot
 - Add gifs
 - Tested on Ubuntu
-- Update with tray icon
 
 ### ⚙️ Miscellaneous Tasks
 
 - Add script to update CHANGELOG
-- Update CHANGELOG
 
 ## [0.3.0] - 2024-08-04
 
