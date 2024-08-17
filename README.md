@@ -8,7 +8,7 @@ Elgato Key Light controller for Linux distributions
 
 ## Installation
 
-## From the AUR
+## From the [AUR](https://aur.archlinux.org/packages/elgato-keylight)
 
 ```sh
 aura|paru|yay -S elgato-keylight
