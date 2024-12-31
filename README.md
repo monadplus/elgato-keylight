@@ -60,6 +60,11 @@ Optional:
 How to install
 * **Apt**: `$ sudo apt-get install -y build-essential libssl-dev avahi-daemon avahi-utils libnotify-dev libgtk-3-dev libxdo-dev libappindicator3-dev`
 * **Pacman**: `$ sudo pacman -S openssl avahi libnotify gtk3 xdotool libappindicator-gtk3`
+  - For the discovery to work, the avahi daemon must be running
+    ```sh
+    sudo systemctl enable avahi-daemon.service
+    sudo systemctl start avahi-daemon.service
+    ```
 
 ### Tested on
 
