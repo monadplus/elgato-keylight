@@ -76,17 +76,6 @@ fn main() -> eframe::Result {
             while gtk::main_iteration() {
                 let main_window_opened = is_window_opened.load(Ordering::Acquire);
                 open_menu_item.set_enabled(!main_window_opened);
-                if !main_window_opened {
-                    if let Ok(event) = MenuEvent::receiver().try_recv() {
-                        debug!("Menu event: {:?}", event);
-                        if event.id() == OPEN_MENU_ITEM_ID {
-                            is_window_opened.store(true, Ordering::Relaxed);
-                        }
-                        if event.id() == EXIT_MENU_ITEM_ID {
-                            stop_signal.store(true, Ordering::Relaxed);
-                        }
-                    }
-                }
             }
         });
     }
@@ -110,7 +99,7 @@ fn main() -> eframe::Result {
             .with_inner_size([320.0, 240.0])
             .with_close_button(true)
             .with_resizable(true),
-        run_and_return: true,
+        run_and_return: false,
         ..Default::default()
     };
 
@@ -138,31 +127,11 @@ fn main() -> eframe::Result {
     }
 
     #[cfg(feature = "tray-icon")]
-    {
-        while !stop_signal.load(Ordering::Acquire) {
-            std::hint::spin_loop(); // Copium
-
-            if is_window_opened.load(Ordering::Acquire) {
-                let app = app.clone();
-                eframe::run_native(
-                    "Elgato Key Light Controller",
-                    options.clone(),
-                    Box::new(|_cc| Ok(Box::new(app))),
-                )
-                .unwrap();
-                // Window was closed; mark as hidden so the tray can reopen it.
-                is_window_opened.store(false, Ordering::Release);
-            }
-            // HACK: avoid 100% CPU
-            //
-            // NOTE: a condvar will not work because you need to
-            // wait after the `run_native`, but you won't be able to
-            // set the stop because you are holding a lock here.
-            std::thread::sleep(std::time::Duration::from_millis(100));
-        }
-
-        Ok(())
-    }
+    eframe::run_native(
+        "Elgato Key Light Controller",
+        options.clone(),
+        Box::new(|_cc| Ok(Box::new(app))),
+    )
     #[cfg(not(feature = "tray-icon"))]
     eframe::run_native(
         "Elgato Key Light Controller",
@@ -207,12 +176,39 @@ enum AppState {
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         #[cfg(feature = "tray-icon")]
+        {
+            let mut close_requested = false;
+            ctx.input(|i| {
+                if i.viewport().close_requested() {
+                    close_requested = true;
+                }
+            });
+            if close_requested {
+                debug!("Close requested: hiding window");
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                self.is_window_open.store(false, Ordering::Release);
+            }
+        }
+
+        #[cfg(feature = "tray-icon")]
         if let Ok(event) = MenuEvent::receiver().try_recv() {
             debug!("Menu event: {:?}", event);
+            if event.id() == OPEN_MENU_ITEM_ID {
+                self.is_window_open.store(true, Ordering::Release);
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            }
             if event.id() == EXIT_MENU_ITEM_ID {
                 self.stop_signal.store(true, Ordering::Release);
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
+        }
+
+        #[cfg(feature = "tray-icon")]
+        if !self.is_window_open.load(Ordering::Acquire) {
+            // Keep the event loop alive so tray menu events are processed.
+            ctx.request_repaint_after(std::time::Duration::from_millis(200));
         }
 
         egui_extras::install_image_loaders(ctx);
