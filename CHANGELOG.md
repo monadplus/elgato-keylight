@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.1] - 2026-02-24
+
+### 🐛 Bug Fixes
+
+- Move PKGBUILD to another repo
+- Viewport deadlock
+
+### 📚 Documentation
+
+- Extend installing from AUR
+- Add link to AUR
+
+### ⚙️ Miscellaneous Tasks
+
+- Add submodule pacman
+
 ## [0.5.0] - 2024-08-13
 
 ### 🚀 Features
@@ -21,7 +37,7 @@ All notable changes to this project will be documented in this file.
 
 - Reduce transitive dependencies
 
-## [0.4.0] - 2024-08-12
+## [0.4.0] - 2024-08-13
 
 ### 🚀 Features
 
@@ -37,7 +53,7 @@ All notable changes to this project will be documented in this file.
 
 - Add script to update CHANGELOG
 
-## [0.3.0] - 2024-08-04
+## [0.3.0] - 2024-08-13
 
 ### 🚀 Features
 
@@ -48,13 +64,13 @@ All notable changes to this project will be documented in this file.
 
 - Add CHANGELOG
 
-## [0.2.0] - 2024-08-04
+## [0.2.0] - 2024-08-13
 
 ### 🚀 Features
 
 - GUI
 
-## [0.1.0] - 2024-08-04
+## [0.1.0] - 2024-08-13
 
 ### 🚀 Features
 

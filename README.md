@@ -68,8 +68,9 @@ How to install
 
 ### Tested on
 
-* Arch Linux (stable 6.9.1)
+* Arch Linux on X11
 * Ubuntu 24.04 LTS
+* CachyOS KDE Plasma on Wayland
 
 ## Usage
 
@@ -150,4 +151,5 @@ $ docker run -it elgato-keylight:latest
 
 Contributions are welcome! 
 
-Please, if you intend to do a big change, open an issue first.
+- Update crate version according to SemVer rules.
+  - Do not forget to run [`$ git cliff --tag <TAG> --output CHANGELOG.md`](https://github.com/orhun/git-cliff)
