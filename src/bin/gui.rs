@@ -205,12 +205,20 @@ enum AppState {
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         #[cfg(feature = "tray-icon")]
-        ctx.input(|i| {
-            if i.viewport().close_requested() {
+        {
+            let mut close_requested = false;
+            ctx.input(|i| {
+                if i.viewport().close_requested() {
+                    close_requested = true;
+                }
+            });
+            if close_requested {
                 debug!("Close requested");
+                // Send close outside the input closure to avoid locking issues.
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 self.is_window_open.store(false, Ordering::Release);
             }
-        });
+        }
 
         #[cfg(feature = "tray-icon")]
         if let Ok(event) = MenuEvent::receiver().try_recv() {
