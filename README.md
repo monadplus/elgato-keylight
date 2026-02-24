@@ -151,5 +151,15 @@ $ docker run -it elgato-keylight:latest
 
 Contributions are welcome! 
 
-- Update crate version according to SemVer rules.
-  - Do not forget to run [`$ git cliff --tag <TAG> --output CHANGELOG.md`](https://github.com/orhun/git-cliff)
+### Steps
+
+1. Open an issue on github.
+2. Prepare a PR with your changes.
+3. Wait for a review.
+4. Once merged, ask for a new tag and a release on AUR
+  1. How to release on AUR (`./pacman/README.md`)
+
+Notes:
+- Make sure your commits follow [git cliff](https://github.com/orhun/git-cliff) format.
+- Update crate version according to SemVer rules. 
+- Update the `CHANGELOG.md` (`$ git cliff --tag <TAG> --output CHANGELOG.md`).
