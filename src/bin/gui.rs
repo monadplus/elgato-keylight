@@ -149,7 +149,9 @@ fn main() -> eframe::Result {
                     options.clone(),
                     Box::new(|_cc| Ok(Box::new(app))),
                 )
-                .unwrap()
+                .unwrap();
+                // Window was closed; mark as hidden so the tray can reopen it.
+                is_window_opened.store(false, Ordering::Release);
             }
             // HACK: avoid 100% CPU
             //
@@ -204,22 +206,6 @@ enum AppState {
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        #[cfg(feature = "tray-icon")]
-        {
-            let mut close_requested = false;
-            ctx.input(|i| {
-                if i.viewport().close_requested() {
-                    close_requested = true;
-                }
-            });
-            if close_requested {
-                debug!("Close requested");
-                // Send close outside the input closure to avoid locking issues.
-                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                self.is_window_open.store(false, Ordering::Release);
-            }
-        }
-
         #[cfg(feature = "tray-icon")]
         if let Ok(event) = MenuEvent::receiver().try_recv() {
             debug!("Menu event: {:?}", event);
