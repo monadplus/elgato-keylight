@@ -29,26 +29,26 @@ path = "src/bin/discover.rs"
 required-features = []
 
 [dependencies]
-anyhow = "1.0.86"
-clap = { version = "4.5.11", features = ["derive"], optional = true }
+anyhow = "1.0.102"
+clap = { version = "4.5.60", features = ["derive"], optional = true }
 eframe = { version = "0.28.1", optional = true }
 egui_extras = { version = "0.28.1", features = ["image"], optional = true }
-env_logger = "0.11.5"
-gtk = { version = "0.18.1", optional = true }
-image = { version = "0.25.2", features = ["jpeg", "png"], optional = true }
+env_logger = "0.11.9"
+gtk = { version = "0.18.2", optional = true }
+image = { version = "0.25.9", features = ["jpeg", "png"], optional = true }
 itertools = "0.13.0"
-log = "0.4.22"
-regex = "1.10.5"
+log = "0.4.29"
+regex = "1.12.3"
 reqwest = { version = "0.12", features = ["json"], optional = true }
-serde = { version = "1.0.204", features = ["derive"] }
-serde_json = "1.0.121"
-serde_repr = "0.1.19"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+serde_repr = "0.1.20"
 strum = { version = "0.26.3", features = ["derive"] }
-tempfile = "3.10.1"
-thiserror = "1.0.63"
+tempfile = "3.26.0"
+thiserror = "1.0.69"
 tokio = { version = "1", features = ["full"] }
 tray-icon = { version = "0.14.3", optional = true}
-url = "2.5.2"
+url = "2.5.8"
 
 [features]
 default = ["gui"]
