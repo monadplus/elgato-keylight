@@ -10,13 +10,18 @@ readme = "README.md"
 categories = ["gui", "cli"]
 keywords = ["elgato", "keylight", "control center"]
 edition = "2021"
-rust-version = "1.75.0"
+rust-version = "1.96.1"
 default-run = "elgato-keylight"
 
 [[bin]]
 name = "elgato-keylight"
 path = "src/bin/gui.rs"
 required-features = ["gui"]
+
+[[bin]]
+name = "elgato-keylight-iced"
+path = "src/bin/gui_iced.rs"
+required-features = ["iced-gui"]
 
 [[bin]]
 name = "elgato-keylight-cli"
@@ -35,6 +40,7 @@ eframe = { version = "0.28.1", optional = true }
 egui_extras = { version = "0.28.1", features = ["image"], optional = true }
 env_logger = "0.11.5"
 gtk = { version = "0.18.1", optional = true }
+iced = { version = "0.14.0", features = ["tokio"], optional = true }
 image = { version = "0.25.2", features = ["jpeg", "png"], optional = true }
 itertools = "0.13.0"
 log = "0.4.22"
@@ -55,4 +61,5 @@ default = ["gui"]
 network = ["dep:reqwest"]
 cli = ["network", "dep:clap"]
 gui = ["network", "dep:eframe", "dep:egui_extras"]
+iced-gui = ["network", "dep:iced"]
 tray-icon = ["gui", "dep:gtk", "dep:image", "dep:tray-icon"]
